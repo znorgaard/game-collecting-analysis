@@ -1,0 +1,425 @@
+---
+title: "Game Collecting Analysis"
+date: '`r Sys.Date()`'
+output: 
+  rmdformats::robobook:
+  highlight: kate
+toc_depth: 6
+---
+
+```{r knitr_init, cache = FALSE, warning = FALSE, echo = FALSE}
+library(knitr)
+## Global options
+opts_chunk$set(echo = FALSE,
+               cache = FALSE,
+               prompt = FALSE,
+               comment = NA,
+               include = TRUE,
+               message = FALSE,
+               warning = FALSE)
+```
+
+```{r globals}
+# Data comes from a survey of a small game collecting community
+DATA_PATH <- file.path(dirname(getwd()), "data", "survey-data-2020-05-06.csv")
+
+RESPONSE_SEP <- ";"
+
+# Anything with "likelihood" is on a 1-5 scale with 1 being very likely and 5 being very unlikely
+# Columns that allow multiple responses separated by ";"
+#   system_types
+#   console_generations
+#   handheld_generations
+#   thought_process
+# Other columns contain single responses and can be treated as factors
+COLUMN_RECODE_NAMES <- c(
+  "timestamp",
+  "system_types",
+  "console_generations",
+  "handheld_generations",
+  "before_your_time",
+  "current_systems",
+  "system_variant_likelihood",
+  "sealed_likelihood",
+  "cib",
+  "missing_inserts",
+  "loose",
+  "wear_likelihood",
+  "illegible_likelihood",
+  "price_likelihood",
+  "wishlist",
+  "system_complete",
+  "series_complete",
+  "price_check",
+  "never_played_before",
+  "review_influence_likelihood",
+  "research_likelihood",
+  "thought_process",
+  "age",
+  "gender",
+  "ethnicity",
+  "education",
+  "employment"
+)
+
+GENERATION_LEVELS <- c(
+  "First",
+  "Second",
+  "Third",
+  "Fourth",
+  "Fifth",
+  "Sixth",
+  "Seventh",
+  "Eighth",
+  "Ninth"
+)
+
+CIB_LEVELS <- c(
+  "I only collect CIB games.",
+  "It varies by system.",
+  "It varies by game series.",
+  "It varies by cost of CIB.",
+  "I don't specifically seek out CIB games."
+)
+```
+
+```{r packages}
+library(dplyr)
+library(DT)
+library(plotly)
+library(UpSetR)
+```
+
+```{r functions}
+# Function to turn a vector into a dataframe of counts with known column names c("categories", "count")
+# Input:
+#   some_vector = a vector of values to be tabluated (string | factor recommended)
+# Output:
+#   a data.frame with a two columns: categories as a factor and count as a numeric
+df_from_vector <- function(some_vector, factor_levels=c()) {
+  df <- as.data.frame(table(some_vector, dnn = list("categories")), responseName = "count")
+  factor_levels <- if (length(factor_levels) == 0) { unique(df$categories) } else { factor_levels }
+  df$categories <- factor(
+    df$categories,
+    levels = factor_levels
+  )
+  df
+}
+
+# Function to turn a multiresponse vector into an observation matrix for plotting with UpSetR
+# Input:
+#   multiresponse_vector is a vector of multiple response values each set of multiple responses
+#     is separated by RESPONSE_SEP
+#   RESPONSE_SEP is the string separator of multiple responses
+# Output:
+#   a dataframe with one column for "Respondents" and additional columns for each unique response
+#     the values in the unique response columns are either 1 (checked) or 0 (not checked)
+upset_format <- function(multiresponse_vector, response_sep = RESPONSE_SEP) {
+  split_responses <- strsplit(as.character(multiresponse_vector), response_sep)
+  unique_responses <- unique(unlist(split_responses))
+  response_df <- bind_rows(
+    lapply(
+      split_responses,
+      function(split_response) {
+        sapply(
+          unique_responses,
+          function(known_response) {if (known_response %in% split_response) {1} else {0}}
+        )
+      }
+    )
+  )
+  cbind(data.frame(respondent = paste0("Respondent_", seq(nrow(response_df)))), response_df)
+}
+
+```
+
+```{r read-n-format-data}
+survey_df <- read.csv(DATA_PATH)
+colnames(survey_df) <- COLUMN_RECODE_NAMES
+```
+
+# Introduction
+
+This project is a simple graphical exploration of results from a survey of a small game collecting group.
+There were a total of `r nrow(survey_df)` respondents.
+
+# Which systems do you collect for?
+
+## Figure 1, System Types
+
+```{r overarching-system-types, fig.height=5, fig.width=8}
+upset(
+  data = upset_format(survey_df$system_types),
+  empty.intersections = 2,
+  
+  mb.ratio = c(0.5, 0.5),
+  main.bar.color = "black",
+  matrix.color = "black",
+  sets.bar.color = "black",
+  text.scale = 1.7
+)
+```
+
+This is an [UpSet](http://gehlenborglab.org/research/projects/upsetr/) plot.
+It acts as an alternative to a venn diagram.
+You can see the overall number of respondents collecting for each system type on the left.
+To the right, you see how many respondents collect for each combination of systems.
+`
+
+The overwhelming majority of respondents collect for consoles and handhelds.
+No respondent collects for just PC or just handhelds and anyone that collects for PC also collects for consoles and handhelds.
+
+## Figure 2, Console Generations
+```{r console-generations}
+upset(
+  data = upset_format(gsub(" Generation \\([[:alnum:][:space:],/-]+)", "", survey_df$console_generations)),
+  mb.ratio = c(0.5, 0.5),
+  main.bar.color = "black",
+  matrix.color = "black",
+  sets.bar.color = "black",
+  text.scale = 1.7,
+  nsets = 20
+)
+```
+
+```{r console-generations-table}
+console_generations <- unique(unlist(strsplit(as.character(survey_df$console_generations), RESPONSE_SEP)))
+console_generations_df <- data.frame(
+  Generation = factor(gsub(" Generation.*", "", console_generations), levels = GENERATION_LEVELS),
+  Consoles = gsub(".*\\(|)", "", console_generations)
+)
+DT::datatable(
+  console_generations_df[order(console_generations_df$Generation),],
+  class = 'cell-border stripe hover',
+  rownames = FALSE,
+  extensions = list("Buttons" = NULL),
+  options = list(
+    buttons = list(
+      c(extend = "copy", text = "Copy Table"),
+      "csv",
+      "excel",
+      c(extend = "colvis", text = "Hide/Show Columns")
+    )
+  )
+)
+
+```
+
+This is another UpSet plot looking at which console generations respondents collect.
+
+
+Excluding the newest (and still hard to find) consoles, the recent generations are the most popular to collect for.
+Overall, the most popular generation is the sixth (PS2, Gamecube, Xbox, Dreamcast).
+Only two respondents collect for a single generation and only three respondents collect for just two generations.
+
+## Figure 3, Handheld Generations
+```{r handheld-generations}
+upset(
+  data = upset_format(
+    gsub(
+      " Generation \\([[:alnum:][:space:].&,/-]+)",
+      "",
+      subset(survey_df, handheld_generations != "None of the above")$handheld_generations
+    )
+  ),
+  mb.ratio = c(0.5, 0.5),
+  main.bar.color = "black",
+  matrix.color = "black",
+  sets.bar.color = "black",
+  text.scale = 1.7,
+  nsets = 20
+)
+```
+
+```{r handheld-generations-table}
+handheld_generations <- unique(unlist(strsplit(as.character(survey_df$handheld_generations), RESPONSE_SEP)))
+handheld_generations_df <- data.frame(
+  Generation = factor(gsub(" Generation.*", "", handheld_generations), levels = GENERATION_LEVELS),
+  Consoles = gsub(".*\\(|)", "", handheld_generations)
+)
+DT::datatable(
+  handheld_generations_df[order(handheld_generations_df$Generation),],
+  class = 'cell-border stripe hover',
+  rownames = FALSE,
+  extensions = list("Buttons" = NULL),
+  options = list(
+    buttons = list(
+      c(extend = "copy", text = "Copy Table"),
+      "csv",
+      "excel",
+      c(extend = "colvis", text = "Hide/Show Columns")
+    )
+  )
+)
+
+```
+
+Most everyone that collects handhelds collects for the same generations (Fourth, Sixth, Seventh, and Eight).
+
+## Figure 4, Ease of access
+
+```{r retro-bars, fig.height=3, fig.width=8}
+retro_ly <- plot_ly(
+  data = df_from_vector(survey_df$before_your_time),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+) %>%
+  layout(
+    yaxis = list(title = "Count"),
+    xaxis = list(title = ""),
+    name = "Retro"
+  )
+
+new_ly <- plot_ly(
+  data = df_from_vector(survey_df$current_systems),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+) %>%
+  layout(
+    yaxis = list(title = "Count"),
+    xaxis = list(title = ""),
+    name = "New"
+  )
+
+
+subplot(retro_ly, new_ly, shareY = TRUE) %>%
+  layout(annotations = list(
+    list(
+      x = -0.01,
+      y = 1.5,
+      text = "Do you collect systems you did not own/have\neasy access to before they were discontinued?",
+      showarrow = F,
+      xref='paper',
+      yref='paper'
+    ),
+  list(
+    x = 0.9,
+    y = 1.5,
+    text = "Do you collect systems\ncurrently being manufactured?",
+    showarrow = F,
+    xref='paper', 
+    yref='paper')
+  ),
+  margin = 0,
+  showlegend = FALSE
+)
+```
+
+A majority of respondents collect for at least one system they did not own or have easy access to before those systems were dicsontinued.
+A majority of respondents also collect for currently manufactured systems.
+
+## Figure 5, Collecting multiple system variants
+```{r hardware-variant-collecting, fig.height=3, fig.width=6}
+plot_ly(
+  data = survey_df,
+  x = ~system_variant_likelihood,
+  type = "histogram"
+) %>%
+  layout(
+    title = "How likely are you to collect multiple variations of hardware?",
+    yaxis = list(title = "Count"),
+    xaxis = list(title = "", tickvals = c(1, 5), ticktext = c("Very Likely", "Very Unlikely")),
+    bargap = 0.1
+  )
+
+```
+
+Despite the abundance of multiple variant hardware posts we see, most respondents are unlikely to purchase system variants.
+
+# What condition of games do you collect?
+
+## Figure 6, Prioritizing sealed and staying sealed and CIB
+```{r complete, fig.height=4, fig.width=8}
+sealed_ly <- plot_ly(
+  data = df_from_vector(survey_df$sealed_likelihood, c("Never", "Sometimes", "Frequently")),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+)
+
+cib_ly <- plot_ly(
+  data = df_from_vector(survey_df$cib, CIB_LEVELS),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+)
+
+subplot(sealed_ly, cib_ly, shareY = TRUE, titleX = FALSE) %>%
+  layout(
+    annotations = list(
+      list(
+        x = -0.01,
+        y = 1.5,
+        text = "How often do you collect factory\nsealed games without the\nintention of opening them?",
+        showarrow = F,
+        xref='paper',
+        yref='paper'
+    ),
+    list(
+      x = 0.9,
+      y = 1.25,
+      text = "Do you collect complete\nin box (CIB) games?",
+      showarrow = F,
+      xref='paper', 
+      yref='paper'
+    )
+  ),
+  xaxis = list(title = ""),
+  yaxis = list(title = "Count"),
+  margin = 0,
+  showlegend = FALSE
+)
+
+```
+
+Perhaps unsurprisingly, most respondents do not often collect games without the intention of opening them.
+The two most important factors when deciding on collecting CIB or not are the system and the price.
+
+## Figure 7, Stuff is missing but it's still fun
+```{r missing, fig.height=4, fig.width=8}
+cases_ly <- plot_ly(
+  data = df_from_vector(survey_df$missing_inserts),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+)
+
+loose_ly <- plot_ly(
+  data = df_from_vector(survey_df$loose),
+  x = ~categories,
+  y = ~count,
+  type = "bar"
+)
+
+subplot(cases_ly, loose_ly, shareY = TRUE, titleX = FALSE) %>%
+  layout(
+    annotations = list(
+      list(
+        x = -0.01,
+        y = 1.5,
+        text = "Do you collect games with\nboxes/cases that are missing\nmanuals or other inserts?",
+        showarrow = F,
+        xref='paper',
+        yref='paper'
+    ),
+    list(
+      x = 0.9,
+      y = 1.25,
+      text = "Do you collect loose games?",
+      showarrow = F,
+      xref='paper', 
+      yref='paper'
+    )
+  ),
+  xaxis = list(title = ""),
+  yaxis = list(title = "Count"),
+  margin = 0,
+  showlegend = FALSE
+)
+```
+
+Most respondents prioritize games with cases but don't care if some of the inserts are missing.
+Most respondents will also collect loose games for certain systems.
+In a follow up survey it may be of interest to split this by catridge and disc based systems.
