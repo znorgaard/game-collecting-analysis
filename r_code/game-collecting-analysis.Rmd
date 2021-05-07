@@ -131,6 +131,10 @@ upset_format <- function(multiresponse_vector, response_sep = RESPONSE_SEP) {
   cbind(data.frame(respondent = paste0("Respondent_", seq(nrow(response_df)))), response_df)
 }
 
+
+## TODO: Create a function for generating horizontal bar charts from count data.frames
+
+## TODO: Create a function for generating likelihood plots
 ```
 
 ```{r read-n-format-data}
@@ -330,96 +334,135 @@ Despite the abundance of multiple variant hardware posts we see, most respondent
 
 # What condition of games do you collect?
 
-## Figure 6, Prioritizing sealed and staying sealed and CIB
-```{r complete, fig.height=4, fig.width=8}
-sealed_ly <- plot_ly(
+## Figure 6, Sealed and staying sealed
+```{r sealed, fig.height=4, fig.width=5, fig.align='right'}
+plot_ly(
   data = df_from_vector(survey_df$sealed_likelihood, c("Never", "Sometimes", "Frequently")),
-  x = ~categories,
-  y = ~count,
-  type = "bar"
-)
-
-cib_ly <- plot_ly(
-  data = df_from_vector(survey_df$cib, CIB_LEVELS),
-  x = ~categories,
-  y = ~count,
-  type = "bar"
-)
-
-subplot(sealed_ly, cib_ly, shareY = TRUE, titleX = FALSE) %>%
+  y = ~categories,
+  x = ~count,
+  type = "bar",
+  orientation = 'h'
+) %>% 
   layout(
-    annotations = list(
-      list(
-        x = -0.01,
-        y = 1.5,
-        text = "How often do you collect factory\nsealed games without the\nintention of opening them?",
-        showarrow = F,
-        xref='paper',
-        yref='paper'
-    ),
-    list(
-      x = 0.9,
-      y = 1.25,
-      text = "Do you collect complete\nin box (CIB) games?",
-      showarrow = F,
-      xref='paper', 
-      yref='paper'
-    )
-  ),
-  xaxis = list(title = ""),
-  yaxis = list(title = "Count"),
-  margin = 0,
-  showlegend = FALSE
-)
-
+    title = "How often do you collect factory sealed games\nwithout the intention of opening them?",
+    yaxis = list(title = ""),
+    xaxis = list(title = "Count"),
+    margin = 0
+  )
 ```
 
 Perhaps unsurprisingly, most respondents do not often collect games without the intention of opening them.
+
+## Figure 7, Prioritizing CIB
+```{r cib, fig.height=4, fig.width=8}
+plot_ly(
+  data = df_from_vector(survey_df$cib, CIB_LEVELS),
+  y = ~categories,
+  x = ~count,
+  type = "bar",
+  orientation = 'h'
+) %>%
+  layout(
+    title = "Do you collect complete in box (CIB) games?",
+    yaxis = list(title = ""),
+    xaxis = list(title = "Count"),
+    margin = 0
+  )
+```
+
 The two most important factors when deciding on collecting CIB or not are the system and the price.
 
-## Figure 7, Stuff is missing but it's still fun
+## Figure 8, Missing inserts
 ```{r missing, fig.height=4, fig.width=8}
-cases_ly <- plot_ly(
-  data = df_from_vector(survey_df$missing_inserts),
-  x = ~categories,
-  y = ~count,
-  type = "bar"
-)
-
-loose_ly <- plot_ly(
-  data = df_from_vector(survey_df$loose),
-  x = ~categories,
-  y = ~count,
-  type = "bar"
-)
-
-subplot(cases_ly, loose_ly, shareY = TRUE, titleX = FALSE) %>%
+plot_ly(
+  data = df_from_vector(gsub("cases ", "cases\n", survey_df$missing_inserts)),
+  y = ~categories,
+  x = ~count,
+  type = "bar",
+  orientation = 'h'
+) %>%
   layout(
-    annotations = list(
-      list(
-        x = -0.01,
-        y = 1.5,
-        text = "Do you collect games with\nboxes/cases that are missing\nmanuals or other inserts?",
-        showarrow = F,
-        xref='paper',
-        yref='paper'
-    ),
-    list(
-      x = 0.9,
-      y = 1.25,
-      text = "Do you collect loose games?",
-      showarrow = F,
-      xref='paper', 
-      yref='paper'
-    )
-  ),
-  xaxis = list(title = ""),
-  yaxis = list(title = "Count"),
-  margin = 0,
-  showlegend = FALSE
-)
+    title = "Do you collect games with boxes/cases that\nare missing manuals or other inserts?",
+    yaxis = list(title = ""),
+    xaxis = list(title = "Count"),
+    margin = 0
+  )
+
 ```
 
 Most respondents prioritize games with cases but don't care if some of the inserts are missing.
+
+## Figure 9, Loose games
+```{r loose, fig.height=4, fig.width=8}
+plot_ly(
+  data = df_from_vector(survey_df$loose),
+  y = ~categories,
+  x = ~count,
+  type = "bar",
+  orientation = 'h'
+) %>%
+  layout(
+    title = "Do you collect loose games?",
+    yaxis = list(title = ""),
+    xaxis = list(title = "Count"),
+    margin = 0
+  )
+```
+
 Most respondents will also collect loose games for certain systems.
-In a follow up survey it may be of interest to split this by catridge and disc based systems.
+In a follow up survey it may be of interest to split this by cartridge and disc based systems.
+
+## Figure 10, Visible wear
+```{r wear, fig.height=3, fig.width=6}
+plot_ly(
+  data = survey_df,
+  x = ~wear_likelihood,
+  type = "histogram"
+) %>%
+  layout(
+    title = "How likely is it that you would purchase\na game with visible signs of wear?",
+    yaxis = list(title = "Count"),
+    xaxis = list(title = "", tickvals = c(1, 5), ticktext = c("Very Likely", "Very Unlikely")),
+    bargap = 0.1,
+    margin = 0
+  )
+```
+
+On average, respondents are ambivalent towards moderate wear and tear.
+This could be indicate that minor wear and tear is not as important as other factors such as price.
+
+## Figure 11, Superficial Damage
+```{r damage, fig.height=3, fig.width=6}
+plot_ly(
+  data = survey_df,
+  x = ~illegible_likelihood,
+  type = "histogram"
+) %>%
+  layout(
+    title = "How likely is it that you would purchase a game with a\nheavily damaged and illegible or missing label?",
+    yaxis = list(title = "Count"),
+    xaxis = list(title = "", tickvals = c(1, 5), ticktext = c("Very Likely", "Very Unlikely")),
+    bargap = 0.1,
+    margin = 0
+  )
+```
+
+Most respondents are extremely unlikely to purchase a game with a significant damage.
+
+## Figure 12, Price vs CIB
+```{r price, fig.height=3, fig.width=6}
+plot_ly(
+  data = survey_df,
+  x = ~price_likelihood,
+  type = "histogram"
+) %>%
+  layout(
+    title = "How likely is price to influence your decision to purchase\na sealed, CIB, case only, or loose game?",
+    yaxis = list(title = "Count"),
+    xaxis = list(title = "", tickvals = c(1, 5), ticktext = c("Very Likely", "Very Unlikely")),
+    bargap = 0.1,
+    margin = 0
+  )
+```
+
+Price seems to be a major driver behind respondents choice to purchase a CIB game.
